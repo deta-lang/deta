@@ -1,7 +1,13 @@
 # Replit Related
 .replit
 replit.nix
+.ccls-cache
+.git
 
 # Temporary
 deta
 objects
+
+# Invalid sources
+future_src
+past_src
