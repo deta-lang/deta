@@ -63,13 +63,16 @@ namespace deta {
     void getTokenLine(std::stringstream &ss) const;
 
     // Lexer APIs
+  private:
     bool isEOF() const;
-    bool isWhitespace() const;
-    bool isAlpha() const;
-    bool isDigit() const;
-    bool isAlphanum() const;
 
+    void readBuffer();
     char peek();
-    void read();
+    char read();
+    inline void updateLine() {
+      if (ch == '\n') {
+        line++;
+      }
+    }
   };
 }
