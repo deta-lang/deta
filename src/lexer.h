@@ -4,6 +4,7 @@
 #include <string>
 #include <variant>
 #include <fstream>
+#include <sstream>
 
 namespace deta {
   enum class type_t : uint8_t {
@@ -31,7 +32,7 @@ namespace deta {
   
   struct token_t {
     type_t type;
-    std::variant<std::string, double, keyword_t, op_t> value;
+    std::variant<std::string, double, keyword_t, op_t, char, bool> value;
     uint32_t line;
 
     token_t(): type(type_t::NULL_T), value((double) 0.0), line(1) {}
@@ -40,20 +41,26 @@ namespace deta {
   };
 
   struct lexer_t {
-    const std::ifstream &file;
+    std::ifstream &file;
     const std::string filename;
 
     uint32_t line;
     token_t token;
-    char ch;
+    char ichiBuffer[1024], niBuffer[1024];
+    char *ch;
+    bool eof;
 
-    lexer_t(const std::ifstream &file, const std::string filename): file(file), filename(filename), line(1), token(), ch('\0') {}
+    lexer_t(std::ifstream &file, const std::string filename):
+      file(file), filename(filename), line(1), token(), ch(nullptr), eof(false)
+    {
+      read();
+    }
 
     // User facing APIs
     bool next();
-    std::string getTokenType() const;
-    std::string getTokenValue() const;
-    uint32_t getTokenLine() const;
+    voic getTokenType(std::stringstream &ss) const;
+    void getTokenValue(std::stringstream &ss) const;
+    void getTokenLine(std::stringstream &ss) const;
 
     // Lexer APIs
     bool isEOF() const;
@@ -62,6 +69,7 @@ namespace deta {
     bool isDigit() const;
     bool isAlphanum() const;
 
-    void peek();
+    char peek();
+    void read();
   };
 }
