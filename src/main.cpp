@@ -5,20 +5,17 @@
 using namespace deta;
 
 int main(void) {
-  std::ifstream file("main.dt");
-  if(!file) {
-    std::cerr << "Failed to open file: main.dt" << std::endl;
-    return 1;
+  FILE *file = fopen("future_src/main.dt", "r");
+  if(file == NULL) {
+    std::cerr << "Failed to open file future_src/main.dt\n";
   }
-
-  const std::ifstream &file_ref = file;
   
-  lexer_t lexer(file_ref, "main.dt");
+  lexer_t lexer(file, "future_src/main.dt");
 
   while(lexer.next()) {
-    std::cout << lexer.getTokenType() << '\n';
+    lexer.token.str(std::cout) << '\n';
   }
 
-  file.close();
+  fclose(file);
   return 0;
 }

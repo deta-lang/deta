@@ -7,7 +7,7 @@
 
 using namespace deta;
 
-std::unordered_map<std::string, keyword_t> keywords = {
+const std::unordered_map<std::string, keyword_t> keywords = {
 {"if", keyword_t::IF}, {"in", keyword_t::IN}, {"do", keyword_t::DO}, {"fn", keyword_t::FN},
 {"for", keyword_t::FOR}, {"var", keyword_t::VAR}, {"new", keyword_t::NEW},
 {"else", keyword_t::ELSE}, {"type", keyword_t::TYPE}, {"enum", keyword_t::ENUM},
@@ -18,7 +18,7 @@ std::unordered_map<std::string, keyword_t> keywords = {
 {"protected", keyword_t::PROTECTED},
 };
 
-std::unordered_map<std::string, op_t> operators = {
+const std::unordered_map<std::string, op_t> operators = {
 {"+", op_t::ADD}, {"+=", op_t::ADDEQ}, {"-", op_t::MINEQ}, {"*", op_t::MUL}, {"*=", op_t::MULEQ}, {"/", op_t::DIVEQ}, {"%", op_t::MOD}, {"%=", op_t::MODEQ}, {"**", op_t::POW}, {"**=", op_t::POWEQ},
 {"=", op_t::ASSIGN}, {"==", op_t::EQ}, {"!=", op_t::NEQ}, {"<", op_t::LT}, {"<=", op_t::LTEQ}, {">", op_t::GT}, {">=", op_t::GTEQ}, {"&&", op_t::AND}, {"||", op_t::OR}, {"!", op_t::NOT},
 {"&", op_t::BITAND}, {"|", op_t::BITOR}, {"^", op_t::BITXOR}, {"~", op_t::BITNOT}, {"->", op_t::FNRETTYPE}, {":", op_t::COLON}, {";", op_t::SEMI}, {",", op_t::COMMA},
@@ -26,9 +26,15 @@ std::unordered_map<std::string, op_t> operators = {
 {"++", op_t::INCR}, {"--", op_t::DECR}, {"..", op_t::RANGE_INCL}, {"..=", op_t::RANGE_EXCL}, {".", op_t::DOT}, {"...", op_t::SPREAD}, {"?", op_t::QMARK},
 };
 
-std::vector<char> operators_chars = {'+', '-', '*', '/', '%', '!', '=', '<', '>', '.'};
+const std::vector<const char *> operators_chars = {
+  "+", "+=", "-", "-=", "*", "*=", "/", "/=", "%", "%=", "**", "**=",
+  "=", "==", "!=", "<", "<=", ">", ">=", "&&", "||", "!",
+  "&", "|", "^", "~", "->", ":", ";", ",", "[", "]", "{", "}", "(", ")",
+  "++", "--", "..", "..=", ".", "...", "?",
+};
 
 bool lexer_t::next() {
+  skipws();
   token.line = line;
   char c = *ch;
   if(isalpha(c) || c == '_') {
@@ -38,9 +44,10 @@ bool lexer_t::next() {
       updateLine();
     } while(isalnum(c = read()) || c == '_');
 
-    if(keywords.find(s) != keywords.end()) {
+    auto kwd = keywords.find(s);
+    if(kwd != keywords.end()) {
       token.type = type_t::KEYWORD;
-      token.value = keywords[s];
+      token.value = kwd->second;
     } else if(s == "true" || s == "false") {
       token.type = type_t::BOOL;
       token.value = s == "true";
@@ -101,142 +108,114 @@ bool lexer_t::next() {
     read();
     token.type = type_t::CHAR;
   } else {
-    std::string s(1, c);
-    read();
-
-    if(std::find(operators_chars.begin(), operators_chars.end(), c) != operators_chars.end()) {
-      while(std::find(operators_chars.begin(), operators_chars.end(), read()) != operators_chars.end()) {
-        s += *ch;
-      }
+    std::string s;
+    std::string s2;
+    int len = 1;
+    s = c;
+    s2 = c;
+    s2 += read();
+    
+    while(std::find(operators_chars.begin(), operators_chars.end(), s2) != operators_chars.end()) {
+      s += s2[len];
+      s2 += read();
+      len++;
     }
 
-    if(operators.find(s) != operators.end()) {
+    auto op = operators.find(s);
+    if(op != operators.end()) {
       token.type = type_t::OPERATOR;
-      token.value = operators[s];
+      token.value = op->second;
+    } else if(eof) {
+      return false;
     } else {
-      throw std::runtime_error("Unknown token: " + s);
+      throw std::runtime_error("Unknown token: '" + s + "'");
     }
   }
+
+  return true;
 }
 
 char lexer_t::peek() {
-  if(ch == ichiBuffer + 1024)
-    return niBuffer[0];
-  else if(ch == niBuffer + 1024)
-    return ichiBuffer[0];
-  else
-    return ch[1];
+  return '\0';
 }
 
 char lexer_t::read() {
-  if(ch == ichiBuffer + 1024) {
+  if(*ch == '\0' && eof) return '\0';
+  if(ch == ichiBuffer + 1023) {
     ch = niBuffer;
     readBuffer();
-  } else if(ch == niBuffer + 1024) {
+  } else if(ch == niBuffer + 1023) {
     ch = ichiBuffer;
     readBuffer();
   } else {
     ++ch;
   }
-  
-  return *ch;
+
+  return (ch) ? *ch : '\0';
 }
 
 void lexer_t::readBuffer() {
-  std::streamsize bytesRead = 1;
-  if(*niBuffer == '\0') {
-    file.read(ichiBuffer, sizeof(ichiBuffer));
-    ch = ichiBuffer;
-    bytesRead = file.gcount();
+  char *buf = nullptr;
+  if(eof) {
+    return;
+  } else if(ch == ichiBuffer) {
+    buf = niBuffer;
+  } else if(ch == niBuffer) {
+    buf = ichiBuffer;
   } else {
-    ch = niBuffer;
+    throw std::runtime_error("Tries of reading buffer before all data are read");
   }
 
-  if(bytesRead > 0) {
-    file.read(niBuffer, sizeof(niBuffer));
-    bytesRead = file.gcount();
-  }
-
-  if(bytesRead == 0) {
-    ch = NULL;
+  const int bytesRead = fread(buf, 1, 1024, file);
+  if(bytesRead != 1024) {
     eof = true;
+  }
+}
 
-    if(file.fail()) {
-      throw std::runtime_error("Failed to read file");
+std::ostream &token_t::str(std::ostream &os) const {
+  switch(type) {
+    case type_t::INT:
+      os << "(int       ) " << std::get<double>(value);
+      return os;
+    case type_t::FLOAT:
+      os << "(float     ) " << std::get<double>(value);
+      return os;
+    case type_t::STRING:
+      os << "(string    ) " << std::get<std::string>(value);
+      return os;
+    case type_t::CHAR:
+      os << "(char      ) " << std::get<char>(value);
+      return os;
+    case type_t::BOOL:
+      os << "(bool      ) " << std::get<bool>(value);
+      return os;
+    case type_t::NULL_T:
+      os << "(null      ) null";
+      return os;
+    case type_t::IDENTIFIER:
+      os << "(identifier) " << std::get<std::string>(value);
+      return os;
+    case type_t::KEYWORD: {
+      keyword_t wanted = std::get<keyword_t>(value);
+      for(const auto &[key, value] : keywords) {
+        if(value == wanted) {
+          os << "(keyword   ) " << key;
+          return os;
+        }
+      }
+      throw std::runtime_error("Unknown keyword");
     }
-  }
-}
-
-void lexer_t::getTokenType(std::stringstream &ss) const {
-  switch(token.type) {
-    case type_t::IDENTIFIER:
-      ss << "[Identifier] ";
-      break;
-    case type_t::KEYWORD:
-      ss << "[Keyword] ";
-      break;
-    case type_t::OPERATOR:
-      ss << "[Operator] ";
-      break;
-    case type_t::STRING:
-      ss << "[String] ";
-      break;
-    case type_t::INT:
-      ss << "[Integer] ";
-      break;
-    case type_t::FLOAT:
-      ss << "[Float] ";
-      break;
+    case type_t::OPERATOR: {
+      op_t wanted = std::get<op_t>(value);
+      for(const auto &[key, value] : operators) {
+        if(value == wanted) {
+          os << "(operator  ) " << key;
+          return os;
+        }
+      }
+      throw std::runtime_error("Unknown operator");
+    }
     case type_t::FSTRING:
-      ss << "[Format String] ";
-      break;
-    case type_t::NULL_T:
-      ss << "[Null] ";
-      break;
-    case type_t::BOOL:
-      ss << "[Boolean] ";
-      break;
-    case type_t::CHAR:
-      ss << "[Character] ";
-      break;
+      throw std::runtime_error("F-string not supported");
   }
-}
-
-void lexer_t::getTokenValue(std::stringstream &ss) const {
-  switch(token.type) {
-    case type_t::IDENTIFIER:
-      ss << std::get<std::string>(token.value);
-      break;
-    case type_t::KEYWORD:
-      ss << "KEYWORD";
-      break;
-    case type_t::OPERATOR:
-      ss << "OPERATOR";
-      break;
-    case type_t::STRING:
-      ss << '"' << std::get<std::string>(token.value) << '"';
-      break;
-    case type_t::INT:
-      ss << (unsigned long) std::get<double>(token.value);
-      break;
-    case type_t::FLOAT:
-      ss << std::get<double>(token.value);
-      break;
-    case type_t::FSTRING:
-      ss << "FSTRING";
-      break;
-    case type_t::NULL_T:
-      ss << "null";
-      break;
-    case type_t::BOOL:
-      ss << (std::get<bool>(token.value) ? "true" : "false");
-      break;
-    case type_t::CHAR:
-      ss << std::get<char>(token.value);
-      break;
-  }
-}
-
-void lexer_t::getTokenLine(std::stringstream &ss) const {
-  ss << token.line;
 }

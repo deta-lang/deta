@@ -7,6 +7,8 @@ replit.nix
 # Temporary
 deta
 objects
+vgcore.*
+vgmemcheck.txt
 
 # Invalid sources
 future_src

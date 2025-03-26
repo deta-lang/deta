@@ -1,10 +1,13 @@
 #pragma once
 
 #include <cstdint>
+#include <cstring>
+#include <cstdio> // C FS is better than C++ FS
+#include <ctype.h>
 #include <string>
 #include <variant>
-#include <fstream>
 #include <sstream>
+#include <iostream>
 
 namespace deta {
   enum class type_t : uint8_t {
@@ -37,12 +40,12 @@ namespace deta {
 
     token_t(): type(type_t::NULL_T), value((double) 0.0), line(1) {}
 
-    std::string str() const; // to_str(), for debugging aids
+    std::ostream &str(std::ostream &os) const; // to_str(), for debugging aids
   };
 
   struct lexer_t {
-    std::ifstream &file;
-    const std::string filename;
+    FILE *file;
+    const char *filename;
 
     uint32_t line;
     token_t token;
@@ -50,28 +53,39 @@ namespace deta {
     char *ch;
     bool eof;
 
-    lexer_t(std::ifstream &file, const std::string filename):
-      file(file), filename(filename), line(1), token(), ch(nullptr), eof(false)
+    lexer_t(FILE *file, const char *filename):
+      file(file), filename(filename), line(1), ch(nullptr)
     {
-      read();
+      std::memset(ichiBuffer, 0, sizeof(ichiBuffer));
+      std::memset(niBuffer, 0, sizeof(niBuffer));
+
+      int bytesRead = fread(ichiBuffer, sizeof(char), sizeof(ichiBuffer), file);
+      if(bytesRead == sizeof(ichiBuffer)) {
+        bytesRead += fread(niBuffer, sizeof(char), sizeof(niBuffer), file);
+      }
+      if((unsigned long) bytesRead < 2 * sizeof(ichiBuffer)) {
+        eof = true;
+      }
+      ch = ichiBuffer;
     }
 
     // User facing APIs
     bool next();
-    voic getTokenType(std::stringstream &ss) const;
-    void getTokenValue(std::stringstream &ss) const;
-    void getTokenLine(std::stringstream &ss) const;
 
     // Lexer APIs
   private:
-    bool isEOF() const;
-
     void readBuffer();
     char peek();
     char read();
     inline void updateLine() {
-      if (ch == '\n') {
+      if (ch && *ch == '\n') {
         line++;
+      }
+    }
+
+    void skipws() {
+      while (ch && isspace(*ch)) {
+        read();
       }
     }
   };
