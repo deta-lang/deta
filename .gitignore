@@ -13,3 +13,4 @@ vgmemcheck.txt
 # Invalid sources
 future_src
 past_src
+past_src*

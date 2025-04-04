@@ -1,0 +1,141 @@
+grammar Deta;
+
+main: Annotations? (Expr | BaseStmt)* EOF;
+
+// Expression
+Expr: ExprGroup | ExprUnary | ExprBinary | ExprTernary | ValueExpr;
+ExprGroup: '(' Expr (',' Expr)* ')';
+ExprUnary: UnaryOp ValueExpr;
+ExprBinary: ExprOr;
+ExprTernary: Expr '?' Expr ':' Expr;
+ValueExpr: (FnCall | Term) PropertyAccess*;
+
+UnaryOp: '++' | '--' | '+' | '-' | '&' | '!' | '~';
+
+ExprOr: ExprAnd ('||' ExprAnd)*;
+ExprAnd: ExprBitwise ('&&' ExprBitwise)*;
+ExprBitwise: ExprEquality (('&' | '|' | '^') ExprEquality)*;
+ExprEquality: ExprRelational (('==' | '!=') ExprRelational)*;
+ExprRelational: ExprShift (('>' | '<' | '>=' | '<=' | 'in' | 'instanceof') ExprShift)*;
+ExprShift: ExprAdditive (('>>' | '<<') ExprAdditive)*;
+ExprAdditive: ExprMultiplicative (('+' | '-') ExprMultiplicative)*;
+ExprMultiplicative: ExprExponent (('*' | '/' | '%') ExprExponent)*;
+ExprExponent: ExprUnary ('**' ExprUnary)*;
+
+CompoundOperator: '=' | '+=' | '-=' | '*=' | '/=' | '**=' | '%=';
+MatchCase: MatchCaseKey (',' MatchCaseKey)* '->' (Expr | '{' (Expr | BodyStmtContent) '}');
+MatchCaseKey: '_' | Range | STRING | IDENTIFIER | INT | FLOAT;
+
+GroupStmt: '(' Expr ')' | Expr;
+BaseStmt: ExportStmt | ImportStmt | DeleteStmt | ReturnStmt
+    | BreakStmt | WhileStmt | ConstStmt | MatchStmt;
+BodyStmt: ':' Expr | '{' (Expr | BodyStmtContent)* '}';
+BodyStmtContent:
+    DeleteStmt | ReturnStmt | WhileStmt | ConstStmt | MatchStmt
+    | NewStmt | VarDeclStmt | VarAssign | FnCall | IfStmt;
+ExprStmt:
+    Expr
+    | VarAssign
+    | MatchStmt
+    | FnDefStmt;
+
+VarAssign: Annotations? IDENTIFIER PropertyAccess* CompoundOperator (Expr | ExprStmt);
+VarDeclStmt: Annotations? (ConstStmt | VarStmt | BaseVarDecl);
+BaseVarDecl: (IDENTIFIER | ObjectAlias | ArrayAlias) '?'? (':' Type)? ('=' Expr);
+
+TypeAlias: IDENTIFIER '?'? ':' Type;
+TypeBase: IDENTIFIER? ('extends' IDENTIFIER DotPropertyAccess*)? '{' TypeBody* '}';
+EnumBase: '{' (IDENTIFIER (',' IDENTIFIER)*)? '}';
+
+TypeBody: VarDeclStmt | FnDefStmt;
+
+IfStmt: Annotations? 'if' GroupStmt BodyStmt ('else' 'if' GroupStmt BodyStmt)* ('else' BodyStmt)?;
+DoWhileStmt: Annotations? 'do' BodyStmt 'while' GroupStmt;
+FnDefStmt: Annotations? 'fn' IDENTIFIER? FnParams '?'? ('->' Type)? BodyStmt;
+ForStmt: Annotations? 'for' ForCondition BodyStmt;
+VarStmt: 'var' BaseVarDecl;
+NewStmt: Annotations? 'new' FnCall;
+TypeStmt: Annotations? 'type' (TypeAlias | TypeBase);
+EnumStmt: Annotations? 'enum' (IDENTIFIER ('(' IDENTIFIER ')'))? EnumBase;
+MatchStmt: Annotations? 'match' GroupStmt '{' (MatchCase '->' (Expr | '{' (Expr | BodyStmt)* '}'))* '}';
+ConstStmt: 'const' BaseVarDecl;
+WhileStmt: Annotations? 'while' GroupStmt BodyStmt;
+BreakStmt: Annotations? 'break' IDENTIFIER?;
+ReturnStmt: Annotations? 'return' Expr;
+DeleteStmt: Annotations? 'delete' PersistentProperty;
+
+ImportStmt: Annotations? 'import' ImportName ('as' ImportAlias)?;
+ImportName:
+    '<' WHOLEPATH '>'     // Library
+    | '"' WHOLEPATH '"'   // Path
+    | IDENTIFIER          // Module
+    ;
+ImportAlias: ObjectAlias | IDENTIFIER;
+
+ExportStmt: Annotations? 'export'
+    (ObjectAlias
+    | BaseAlias
+    | VarDeclStmt
+    | FnDefStmt
+    | EnumStmt
+    | TypeStmt);
+
+ContinueStmt: Annotations? 'continue' IDENTIFIER?;
+
+AnyAlias: IDENTIFIER | ObjectAlias | ArrayAlias;
+ArrayAlias: '[' (AnyAlias (',' AnyAlias)*)? ']';
+
+ObjectAlias: '{' (ObjectKey ('as' ObjectAlias)?)* '}';
+BaseAlias: (IDENTIFIER | Object | Array | FnDefStmt | EnumStmt | TypeStmt) 'as' IDENTIFIER;
+
+Array: Annotations? '[' (ValueExpr (',' ValueExpr)*)? ']';
+
+Object: Annotations? '{' (ObjectKey ':' ( | (Type '=' ValueExpr)))* '}';
+ObjectKey: IDENTIFIER | INT | STRING;
+
+Type: TypeProperty ('|' TypeProperty)*;
+TypeProperty: Annotations? IDENTIFIER ('.' IDENTIFIER)*;
+PersistentProperty: IDENTIFIER PropertyAccess*;
+Property: Annotations? (FnCall | IDENTIFIER | Object | Array) PropertyAccess*;
+
+PropertyAccess:
+    DotPropertyAccess
+    | ('[' STRING ']')
+    | IndexAccess;
+
+DotPropertyAccess: ('.' IDENTIFIER);
+
+IndexAccess:
+    '['
+    (((IDENTIFIER | INT) ':' (IDENTIFIER | INT))
+    | (IDENTIFIER | INT) ':'
+    | ':' (IDENTIFIER | INT)) ']';
+
+ForCondition: '(' ForConditionInternal ')' | ForConditionInternal;
+ForConditionInternal: ('const' | 'let')? AnyAlias 'in' (Range | ValueExpr);
+
+Annotations: Annotation Annotation*;
+Annotation: '@' (FnCall | IDENTIFIER);
+
+FnCall: Annotations? IDENTIFIER '(' (FnArg (',' FnArg)*)? ')';
+FnArg: (IDENTIFIER ':') ValueExpr;
+FnParams: '(' (FnParam (',' FnParam*)?) ')';
+FnParam: VarDeclStmt;
+
+Range: InclusiveRange | ExclusiveRange;
+InclusiveRange: ValueExpr '..=' ValueExpr;
+ExclusiveRange: ValueExpr '..' ValueExpr;
+Term: STRING | IDENTIFIER | INT | FLOAT | CHAR | Array | Object;
+
+WHOLEPATH: './'? PATH ('/' PATH)*;
+PATH: PATH_CHAR+;
+PATH_CHAR: [a-zA-Z0-9_] | '-' | '.';
+
+STRING: '"' (ESC | ~[\\"])* '"';
+CHAR: '\'' (ESC | ~[\\']) '\'';
+fragment ESC: '\\' [ ntr"\\];
+
+FLOAT: (INT '.' INT) | ('.' INT);
+INT: [0-9]+;
+IDENTIFIER: [a-zA-Z_][a-zA-Z0-9_]*;
+WS: [ \n\t\r] -> skip;
